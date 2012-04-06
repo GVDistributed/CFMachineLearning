@@ -148,9 +148,10 @@ class CFModel(object):
             self.q = [array([(random.random()-0.5)/100000.0 \
                 for i in range(self.f)]) for j in range(data.m)]
 
-        last_rmse = float('inf')
+        last_tot = float('inf')
         for iter in range(max_iter):
             tot = 0
+            rmse = 0
             n = 0
             for user_id in range(data.n):
                 p = len(data.r_u[user_id])**(-self.alpha) * \
@@ -161,26 +162,34 @@ class CFModel(object):
                 for item_id, r, t in data.r_u[user_id]:
                     rp = self.bui(user_id, item_id) + dot(self.q[item_id], p)
                     e = r - rp
+
+                    tot += e**2
+                    tot += reg*(self.bu[user_id]**2 + self.bi[item_id]**2 + \
+                        dot(self.q[item_id], self.q[item_id]))
+
                     s += e*self.q[item_id]
                     self.q[item_id]  += step_size * (e*p - reg*self.q[item_id])
                     self.bu[user_id] += step_size * (e - reg*self.bu[user_id])
                     self.bi[item_id] += step_size * (e - reg*self.bi[item_id]) 
 
-                    tot += e**2
+                    rmse += e**2
                     n += 1
-
+ 
                 for item_id, r, t in data.r_u[user_id]:
+                    tot += reg * len(data.r_u[user_id]) * \
+                        dot(self.x[item_id], self.x[item_id])
+
                     self.x[item_id] += step_size * \
                         (len(data.r_u[user_id])**(-self.alpha) * \
-                         (r - self.cbui(user_id, item_id))*s - reg*self.x[item_id])
+                            (r - self.cbui(user_id, item_id))*s - reg*self.x[item_id])
 
-            rmse = (tot / float(n)) ** 0.5
-            logging.info("%s: %s", iter, rmse)
+            logging.info("%s: %s, %s", iter, (rmse / n) ** 0.5, tot)
 
-            #if abs(rmse - last_rmse) < 1e-3:
-            #    logging.info("Stopping early")
-            #    return
-            last_rmse = rmse
+            if tot > last_tot:
+                logging.info("Stopping early")
+                return
+
+            last_tot = tot
 
 def silly_optimization(f, args):
     best_args = [(arg[0]+arg[1])/2.0 for arg in args]
@@ -224,7 +233,7 @@ def full_optimization(f, arglists):
 
     return best_args, best_val
 
-def validate(model, train, test, reg, reg_i, reg_u, max_iter=200, step_size=0.01, save=True):
+def validate(model, train, test, reg, reg_i, reg_u, max_iter=40, step_size=0.005, save=True):
     model.train(train, reg, reg_i, reg_u, max_iter, step_size)
 
     tot = 0
@@ -256,16 +265,18 @@ if __name__ == '__main__':
     #train = GroupLensDataSet("ml-10M100K/r1.train")
     #test = GroupLensDataSet("ml-10M100K/r1.test")
 
-    model = CFModel()
-    model.load("model[0.955020777355].0.51.20.0.20.0.dump.save")
+    #model = CFModel()
+    #model.load("model.backup")
     train = GroupLensDataSet("ml-100k/u1.base", "\t")
     test = GroupLensDataSet("ml-100k/u1.test", "\t")
 
-    f = lambda *args: validate(model, train, test, *args)
-    closed_f = (lambda model, train, test: f)(model, train, test)
+    #f = lambda *args: validate(model, train, test, *args)
+    #closed_f = (lambda model, train, test: f)(model, train, test)
     #args = [(0.01, 2.00, 0.02), (0, 40, 1), (0, 40, 1)]
     #print silly_optimization(closed_f, args)
 
-    arglists = [[0.45, 0.50, 0.55], [15, 20, 25], [15, 20, 25]]
+    f = lambda *args: validate(CFModel(), train, test, *args)
+    closed_f = (lambda train, test: f)(train, test)
+    arglists = [[0.02, 0.04, 0.10, 0.20], [15, 20, 25], [15, 20, 25]]
     print full_optimization(closed_f, arglists)
 
