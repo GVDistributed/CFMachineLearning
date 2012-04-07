@@ -99,7 +99,7 @@ class CFModel(object):
 
     def save(self, filename):
         with open(filename, "w") as file_write:
-            file_write.write(cPickle.dumps((self.mu, self.bu, self.bi, self.cbu, self.cbi, self.q, self.x, self.alpha, self.f)))
+            file_write.write(cPickle.dumps((self.mu, self.bu, self.bi, self.cbu, self.cbi, self.q, self.x, self.alpha, self.f), protocol=-1))
 
     def cbui(self, user_id, item_id):
         return self.mu + self.cbu[user_id] + self.cbi[item_id]
@@ -173,8 +173,7 @@ class CFModel(object):
                     rp = self.bui(user_id, item_id) + dot(self.q[item_id], p)
                     e = r - rp
 
-                    tot += e**2
-                    tot += reg*(self.bu[user_id]**2 + self.bi[item_id]**2 + \
+                    tot += e**2 + reg*(self.bu[user_id]**2 + self.bi[item_id]**2 + \
                         dot(self.q[item_id], self.q[item_id]))
 
                     s += e*self.q[item_id]
@@ -244,18 +243,16 @@ def full_optimization(f, arglists):
     return best_args, best_val
 
 def validate(model, train, test, reg, reg_i, reg_u, 
-             min_iter=10, max_iter=50, step_size=0.001, save=True):
+             min_iter=10, max_iter=100, step_size=0.01, save=True):
+
     model.train(train, reg, reg_i, reg_u, min_iter, max_iter, step_size)
 
     tot = 0
     n = 0
-    bad = 0
     for user_id, item_id, r, t in test.iter_ratings(train):
-        # Predict
         rp = model.rui(user_id, item_id, train.r_u[user_id])
         tot += (r - rp)**2
         n += 1
-
     rmse = (tot / float(n)) ** 0.5
 
     if save:
@@ -267,21 +264,53 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO)
 
-    #train = GroupLensDataSet("ml-10M100K/r1.train")
-    #test = GroupLensDataSet("ml-10M100K/r1.test")
+    ######
+    # Example for loading a model
+    ######
 
-    #model = CFModel()
-    #model.load("model.backup")
+    '''
+    model = CFModel()
+    model.load("model.backup")
+    '''
+
+    ######
+    # Example for loading datasets
+    ######
+
     train = GroupLensDataSet("ml-100k/u2.base", "\t")
     test = GroupLensDataSet("ml-100k/u2.test", "\t")
 
-    #f = lambda *args: validate(model, train, test, *args)
-    #closed_f = (lambda model, train, test: f)(model, train, test)
-    #args = [(0.01, 2.00, 0.02), (0, 40, 1), (0, 40, 1)]
-    #print silly_optimization(closed_f, args)
+    ######
+    # Approach 1 for figuring out the best magic constants
+    ######
+
+    '''
+    f = lambda *args: validate(model, train, test, *args)
+    closed_f = (lambda model, train, test: f)(model, train, test)
+    args = [(0.01, 2.00, 0.02), (0, 40, 1), (0, 40, 1)]
+    print silly_optimization(closed_f, args)
+    '''
+
+    ######
+    # Approach 2 for figuring out the best magic constants
+    ######
 
     f = lambda *args: validate(CFModel(), train, test, *args)
     closed_f = (lambda train, test: f)(train, test)
-    arglists = [[0.001, 0.0025, 0.005, 0.01, 0.02], [15], [25]]
+    arglists = [[0.0001, 0.0005, 0.001, 0.002], [15], [25]]
     print full_optimization(closed_f, arglists)
 
+    ######
+    # 5-fold cross validation of ml-100k
+    ######
+
+    '''
+    avg_rmse = 0
+    for k in range(1, 6):
+        train = GroupLensDataSet("ml-100k/u%s.base"%k, "\t")
+        test = GroupLensDataSet("ml-100k/u%s.test"%k, "\t")
+        rmse = validate(CFModel(), train, test, reg=0.001, reg_i=15, reg_u=25)
+        avg_rmse += rmse / 5.0
+        print k, rmse
+    print avg_rmse
+    '''
