@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import sys
 import cPickle
 import logging
 import random
@@ -65,10 +66,19 @@ class GroupLensDataSet(object):
     def iter_items(self):
         return enumerate(self.r_i)
 
-    def iter_ratings(self):
+    def iter_ratings(self, baseset=None):
         for user_id, ratings in enumerate(self.r_u):
             for item_id, r, timestamp in ratings:
-                yield user_id, item_id, r, timestamp
+                if baseset:
+                    # Convert ids from one dataset to the other
+                    try:
+                        u, i = baseset.ids_to_indexes(*self.indexes_to_ids(user_id, item_id))
+                    except KeyError:
+                        logging.warn("User %s or Item %s missing from dataset", user_id, item_id)
+                        continue
+                else:
+                    u, i = user_id, item_id
+                yield u, i, r, timestamp
 
 class CFModel(object):
     def __init__(self, alpha=0.5, f=200):
@@ -106,7 +116,7 @@ class CFModel(object):
 
         return self.bui(user_id, item_id) + dot(self.q[item_id], p)
 
-    def train(self, data, reg, reg_i, reg_u, max_iter, step_size):
+    def train(self, data, reg, reg_i, reg_u, min_iter, max_iter, step_size):
         logging.info("Computing mu...")  
         t = 0
         n = 0
@@ -185,7 +195,7 @@ class CFModel(object):
 
             logging.info("%s: %s, %s", iter, (rmse / n) ** 0.5, tot)
 
-            if tot > last_tot:
+            if iter >= min_iter and tot > last_tot:
                 logging.info("Stopping early")
                 return
 
@@ -233,19 +243,14 @@ def full_optimization(f, arglists):
 
     return best_args, best_val
 
-def validate(model, train, test, reg, reg_i, reg_u, max_iter=40, step_size=0.005, save=True):
-    model.train(train, reg, reg_i, reg_u, max_iter, step_size)
+def validate(model, train, test, reg, reg_i, reg_u, 
+             min_iter=10, max_iter=50, step_size=0.001, save=True):
+    model.train(train, reg, reg_i, reg_u, min_iter, max_iter, step_size)
 
     tot = 0
     n = 0
     bad = 0
-    for user_id, item_id, r, t in test.iter_ratings():
-        # Convert ids from one dataset to the other
-        try:
-            user_id, item_id = train.ids_to_indexes(*test.indexes_to_ids(user_id, item_id))
-        except KeyError:
-            bad += 1
-            continue
+    for user_id, item_id, r, t in test.iter_ratings(train):
         # Predict
         rp = model.rui(user_id, item_id, train.r_u[user_id])
         tot += (r - rp)**2
@@ -267,8 +272,8 @@ if __name__ == '__main__':
 
     #model = CFModel()
     #model.load("model.backup")
-    train = GroupLensDataSet("ml-100k/u1.base", "\t")
-    test = GroupLensDataSet("ml-100k/u1.test", "\t")
+    train = GroupLensDataSet("ml-100k/u2.base", "\t")
+    test = GroupLensDataSet("ml-100k/u2.test", "\t")
 
     #f = lambda *args: validate(model, train, test, *args)
     #closed_f = (lambda model, train, test: f)(model, train, test)
@@ -277,6 +282,6 @@ if __name__ == '__main__':
 
     f = lambda *args: validate(CFModel(), train, test, *args)
     closed_f = (lambda train, test: f)(train, test)
-    arglists = [[0.02, 0.04, 0.10, 0.20], [15, 20, 25], [15, 20, 25]]
+    arglists = [[0.001, 0.0025, 0.005, 0.01, 0.02], [15], [25]]
     print full_optimization(closed_f, arglists)
 
