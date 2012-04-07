@@ -47,20 +47,32 @@ if __name__ == '__main__':
     user_points = defaultdict(int)
     user_x, user_y = [], []
     item_x, item_y = [], []
+    plot_x, plot_y = [], []
 
     for user_id, item_id, r, t in test.iter_ratings(train):
         rp = model.rui(user_id, item_id, train.r_u[user_id])
         residual = rp - r
         
-        user_x.append(user_points[user_id])
+        i = user_points[user_id]
+        if i >= len(plot_x):
+            plot_x.append(i)
+            plot_y.append((0, 0))
+        plot_y[i] = (plot_y[i][0] + (residual)**2, plot_y[i][1] + 1)
+
+        user_x.append(i)
         user_y.append(residual)
         user_points[user_id] += 1
         item_x.append(t)
         item_y.append(residual)
 
-    pl1 = fig.add_subplot(2, 2, 3)
-    pl1.stem(user_x, user_y)
-    pl2 = fig.add_subplot(2, 2, 4)
-    pl2.stem(item_x, item_y)
+    for i in range(len(plot_y)):
+        plot_y[i] = (plot_y[i][0] / float(plot_y[i][1]))**0.5
+
+    pl1 = fig.add_subplot(2, 2, 1)
+    pl1.stem(plot_x, plot_y)
+    #pl1 = fig.add_subplot(2, 2, 3)
+    #pl1.stem(user_x, user_y)
+    #pl2 = fig.add_subplot(2, 2, 4)
+    #pl2.stem(item_x, item_y)
 
     plt.show()

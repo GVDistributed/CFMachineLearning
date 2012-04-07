@@ -177,7 +177,7 @@ class CFModel(object):
                         dot(self.q[item_id], self.q[item_id]))
 
                     s += e*self.q[item_id]
-                    self.q[item_id]  += step_size * (e*p - reg*self.q[item_id])
+                    self.q[item_id] += step_size * (e*p - reg*self.q[item_id])
                     self.bu[user_id] += step_size * (e - reg*self.bu[user_id])
                     self.bi[item_id] += step_size * (e - reg*self.bi[item_id]) 
 
