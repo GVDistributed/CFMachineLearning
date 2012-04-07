@@ -277,8 +277,10 @@ if __name__ == '__main__':
     # Example for loading datasets
     ######
 
+    '''
     train = GroupLensDataSet("ml-100k/u2.base", "\t")
     test = GroupLensDataSet("ml-100k/u2.test", "\t")
+    '''
 
     ######
     # Approach 1 for figuring out the best magic constants
@@ -295,22 +297,25 @@ if __name__ == '__main__':
     # Approach 2 for figuring out the best magic constants
     ######
 
+    '''
     f = lambda *args: validate(CFModel(), train, test, *args)
     closed_f = (lambda train, test: f)(train, test)
-    arglists = [[0.0001, 0.0005, 0.001, 0.002], [15], [25]]
+    arglists = [[0.002, 0.0025, 0.003], [10, 15, 20], [20, 25, 30]]
     print full_optimization(closed_f, arglists)
+    '''
 
     ######
     # 5-fold cross validation of ml-100k
     ######
 
-    '''
     avg_rmse = 0
     for k in range(1, 6):
         train = GroupLensDataSet("ml-100k/u%s.base"%k, "\t")
         test = GroupLensDataSet("ml-100k/u%s.test"%k, "\t")
-        rmse = validate(CFModel(), train, test, reg=0.001, reg_i=15, reg_u=25)
+        model = CFModel()
+        rmse = validate(model, train, test, reg=0.0025, reg_i=15, reg_u=25, save=False)
+        model.save("model.100k-%s[%s].dump" % (k, rmse))
         avg_rmse += rmse / 5.0
         print k, rmse
     print avg_rmse
-    '''
+    

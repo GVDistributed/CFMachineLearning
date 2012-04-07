@@ -21,6 +21,9 @@ if __name__ == '__main__':
     train = GroupLensDataSet(sys.argv[2], "\t")
     test = GroupLensDataSet(sys.argv[3], "\t")
 
+    fig = plt.figure()
+
+    '''
     user_points = defaultdict(int)
     user_x, user_y = [], []
     item_x, item_y = [], []
@@ -35,11 +38,11 @@ if __name__ == '__main__':
         item_x.append(t)
         item_y.append(residual)
 
-    fig = plt.figure()
     pl1 = fig.add_subplot(2, 2, 1)
     pl1.stem(user_x, user_y)
     pl2 = fig.add_subplot(2, 2, 2)
     pl2.stem(item_x, item_y)
+    '''
 
     user_points = defaultdict(int)
     user_x, user_y = [], []
