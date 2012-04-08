@@ -116,39 +116,49 @@ class CFModel(object):
 
         return self.bui(user_id, item_id) + dot(self.q[item_id], p)
 
-    def train(self, data, reg, reg_i, reg_u, min_iter, max_iter, step_size):
+    def compute_mu(self, data):
         logging.info("Computing mu...")  
         t = 0
         n = 0
         for v1, v2, r, v3 in data.iter_ratings():
             t += r
             n += 1
-        self.mu = t / float(n)
-        logging.info("%s", self.mu)
+        return t / float(n)
 
+    def compute_bi(self, data, reg_i):
         logging.info("Computing item baselines...")
-        self.cbi = []
+        cbi = []
         for ratings in data.r_i:
             t = 0
             n = 0
             for user_id, r, timestamp in ratings:
                 t += (r - self.mu)
                 n += 1
-            self.cbi.append(t / float(reg_i + n))
-        self.cbi = array(self.cbi)
+            cbi.append(t / float(reg_i + n))
+        return array(cbi)
 
+    def compute_bu(self, data, reg_u):
         logging.info("Computing user baselines...")
-        self.cbu = []
+        cbu = []
         for user_id, ratings in data.iter_users():
             t = 0
             n = 0
             for item_id, r, timestamp in ratings:
                 t += (r - self.cbi[item_id] - self.mu)
                 n += 1
-            self.cbu.append(t / float(reg_u + n))
-        self.cbu = array(self.cbu)
+            cbu.append(t / float(reg_u + n))
+        return array(cbu)
 
-        logging.info("Performing optimization...")
+    def train(self, data, reg, reg_i, reg_u, min_iter, max_iter, step_size):
+
+
+        self.mu = self.compute_mu(data)
+        logging.info("%s", self.mu)
+
+        self.cbi = self.compute_bi(data, reg_i)
+        self.cbu = self.compute_bu(data, reg_u)
+
+        logging.info("Performing Stochastic Gradient Descent...")
         self.bi = array(self.cbi)
         self.bu = array(self.cbu)
         if self.x is None:
@@ -163,8 +173,10 @@ class CFModel(object):
             tot = 0
             rmse = 0
             n = 0
+
             for user_id in range(data.n):
-                p = len(data.r_u[user_id])**(-self.alpha) * \
+                confidence_weight = len(data.r_u[user_id])**(-self.alpha) 
+                p = confidence_weight * \
                     sum((r - self.cbui(user_id, item_id))*self.x[item_id] \
                         for item_id, r, t in data.r_u[user_id])
 
@@ -188,8 +200,7 @@ class CFModel(object):
                     tot += reg * len(data.r_u[user_id]) * \
                         dot(self.x[item_id], self.x[item_id])
 
-                    self.x[item_id] += step_size * \
-                        (len(data.r_u[user_id])**(-self.alpha) * \
+                    self.x[item_id] += step_size * (confidence_weight * \
                             (r - self.cbui(user_id, item_id))*s - reg*self.x[item_id])
 
             logging.info("%s: %s, %s", iter, (rmse / n) ** 0.5, tot)
@@ -309,7 +320,7 @@ if __name__ == '__main__':
     ######
 
     avg_rmse = 0
-    for k in range(1, 6):
+    for k in range(1, 2):
         train = GroupLensDataSet("ml-100k/u%s.base"%k, "\t")
         test = GroupLensDataSet("ml-100k/u%s.test"%k, "\t")
         model = CFModel()
