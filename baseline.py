@@ -20,6 +20,8 @@ class GroupLensDataSet(object):
         self.rev_item_ids = []
         self.r_u = []
         self.r_i = []
+        min_timestamp = 1e100
+        max_timestamp = 0
         with open(filename) as file_read:
             for i, line in enumerate(file_read):
                 user_id, item_id, r, timestamp = line.split(delim)
@@ -27,6 +29,8 @@ class GroupLensDataSet(object):
                 item_id = int(item_id)
                 r = float(r) # 0.5 increments
                 timestamp = int(timestamp)
+                min_timestamp = min(timestamp, min_timestamp)
+                max_timestamp = max(timestamp, max_timestamp)
 
                 if not self.user_ids.has_key(user_id):
                     self.r_u.append([])
@@ -45,6 +49,12 @@ class GroupLensDataSet(object):
         
                 if (i + 1) % 10000 == 0:
                     logging.info("Read %d", i + 1)
+        max_timestamp -= min_timestamp
+        for u, ratings in enumerate(self.r_u):
+            self.r_u[u] = [(iid, r, float(t-min_timestamp)/max_timestamp) for (iid, r, t) in ratings]
+
+        for i, ratings in enumerate(self.r_i):
+            self.r_i[u] = [(uid, r, float(t-min_timestamp)/max_timestamp) for (uid, r, t) in ratings]
 
         for rating_list in itertools.chain(self.r_u, self.r_i):
             rating_list.sort(key = lambda x: x[2])
