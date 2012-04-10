@@ -3,14 +3,16 @@
 import sys
 import cPickle
 import logging
-import random
 import itertools
 from collections import defaultdict
 
 from numpy import *
 
+import random
+
 from baseline import GroupLensDataSet
 from baseline import CFModel as CFModelBase
+from baseline import validate
 
 from utils import binary_search
 from utils import WindowedAverage
@@ -20,21 +22,25 @@ import matplotlib.pyplot as plt
 class CFModel(CFModelBase):
 
     def cbui(self, user_id, item_id, t):
-        return self.mu.query(t) + self.cbu[user_id].query(t) + self.cbi[item_id].query(t)
+        return self.mu.query(t) + self.cbu[user_id] + self.cbi[item_id] + self.cbit[item_id].query(t)
 
     def bui(self, user_id, item_id, t):
-        return self.mu.query(t) + self.bu[user_id] + self.bi[item_id]
+        return self.mu.query(t) + self.bu[user_id] + self.bi[item_id] + self.cbit[item_id].query(t)
 
-    def rui(self, user_id, item_id, ratings, t):
-        p = len(ratings)**(-self.alpha) * \
-            sum((r - self.cbui(user_id, item_id, t))*self.x[item_id] for item_id, r, t in ratings)
+    def load(self, filename):
+        with open(filename) as file_read:
+            self.mu, self.bu, self.bi, \
+                self.cbu, self.cbi, self.cbit, self.q, self.x, \
+                self.alpha, self.f = cPickle.loads(file_read.read())
+        return self
 
-        return self.cbui(user_id, item_id, t) + dot(self.q[item_id], p)
+    def save(self, filename):
+        with open(filename, "w") as file_write:
+            file_write.write(cPickle.dumps((self.mu, self.bu, self.bi, self.cbu, self.cbi, self.cbit, self.q, self.x, self.alpha, self.f), protocol=-1))
 
-    def train(self, data, reg, reg_i, reg_u, min_iter, max_iter, step_size):
-
+    def baselines(self, data, reg_i, reg_u, reg_it, width_mu, width_it):
         logging.info("Computing mu...")  
-        self.mu = WindowedAverage(5000)
+        self.mu = WindowedAverage(width_mu)
         for v1, v2, r, t in data.iter_ratings():
             self.mu.add(t, r)
         self.mu.process()
@@ -42,22 +48,50 @@ class CFModel(CFModelBase):
         logging.info("Computing item baselines...")
         self.cbi = []
         for ratings in data.r_i:
-            cb = WindowedAverage(2000, reg_i)
+            t = 0
+            n = 0
+            for user_id, r, timestamp in ratings:
+                t += (r - self.mu.query(timestamp))
+                n += 1
+            self.cbi.append(t / float(reg_i + n))
+        self.cbi = array(self.cbi)
+
+        logging.info("Computing item baseline functions...")
+        self.cbit = []
+        for item_id, ratings in enumerate(data.r_i):
+            cb = WindowedAverage(width_it, reg_it)
             for user_id, r, t in ratings:
-                cb.add(t, r - self.mu.query(t))
-            self.cbi.append(cb.process())
+                cb.add(t, r - self.cbi[item_id] - self.mu.query(t))
+            self.cbit.append(cb.process())
 
         logging.info("Computing user baselines...")
         self.cbu = []
         for user_id, ratings in data.iter_users():
-            cb = WindowedAverage(1000, reg_u)
+            t = 0
+            n = 0
+            for item_id, r, timestamp in ratings:
+                t += (r - self.cbi[item_id] - self.cbit[item_id].query(timestamp) - self.mu.query(timestamp))
+                n += 1
+            self.cbu.append(t / float(reg_u + n))
+        self.cbu = array(self.cbu)
+
+        self.bi = array(self.cbi)
+        self.bu = array(self.cbu)
+
+        '''
+        logging.info("Computing user baselines...")
+        self.cbu = []
+        for user_id, ratings in data.iter_users():
+            cb = WindowedAverage(100, reg_u)
             for item_id, r, t in ratings:
                 cb.add(t, r - self.cbi[item_id].query(t) - self.mu.query(t))
             self.cbu.append(cb.process())
+        '''
+
+    def train(self, data, reg, reg_i, reg_u, reg_it, width_mu, width_it, min_iter, max_iter, step_size):
+        self.baselines(data, reg_i, reg_u, reg_it, width_mu, width_it)
 
         logging.info("Performing optimization...")
-        self.bi = array([x.query(0) for x in self.cbi])
-        self.bu = array([x.query(0) for x in self.cbu])
         if self.x is None:
             self.x = [array([(random.random()-0.5)/100000.0 \
                 for i in range(self.f)]) for j in range(data.m)]
@@ -107,56 +141,101 @@ class CFModel(CFModelBase):
 
             last_tot = tot
 
-def validate(model, train, test, reg, reg_i, reg_u, 
-             min_iter=10, max_iter=100, step_size=0.01, save=True):
-
-    model.train(train, reg, reg_i, reg_u, min_iter, max_iter, step_size)
-
-    tot = 0
-    n = 0
-    for user_id, item_id, r, t in test.iter_ratings(train):
-        rp = model.rui(user_id, item_id, train.r_u[user_id], t)
-        tot += (r - rp)**2
-        n += 1
-    rmse = (tot / float(n)) ** 0.5
-
-    if save:
-        model.save("model[%s-%s-%s-%s].dump" % (rmse, reg, reg_i, reg_u))
-
-    return rmse
-
 if __name__ == '__main__':
 
     logging.basicConfig(level=logging.INFO)
 
+    '''
+    train = GroupLensDataSet("ml-100k/u1.base", "\t")    
+    model = CFModelBase().load("model.100k-1[0.93205195459].dump")
+    #model.baselines(train, 0, 0)
+
+    data = GroupLensDataSet("ml-100k/u.data", "\t")
+    u = random.randrange(data.n)
+    user_id = train.user_ids[data.rev_user_ids[u]]
+    
+    plot_x1, plot_y1 = [], []
+    plot_x2, plot_y2 = [], []
+    plot_x3, plot_y3 = [], []
+
+    last_gap = None
+    for item_id, r, timestamp in data.r_u[u]:
+        item_id = train.item_ids[data.rev_item_ids[item_id]]
+        gap = r - model.rui(user_id, item_id, data.r_u[u]) #model.cbui(user_id, item_id, timestamp)
+
+        if last_gap != None:
+            plot_x1.append(timestamp)
+            plot_x2.append(timestamp)
+            plot_x3.append(timestamp)
+            #plot_y1.append((gap-last_gap)*model.wij(last_item_id, item_id))
+            #plot_y2.append(gap-last_gap)
+            #plot_y3.append(model.wij(last_item_id, item_id))
+            plot_y1.append(gap)
+            plot_y2.append(gap-last_gap)
+            plot_y3.append(model.wij(last_item_id, item_id))
+
+        last_gap = gap
+        last_item_id = item_id
+
+    fig = plt.figure()
+    p = fig.add_subplot(3, 1, 1)
+    p.scatter(plot_x1, plot_y1, c='b', marker='o')
+    p = fig.add_subplot(3, 1, 2)
+    p.scatter(plot_x2, plot_y2, c='r', marker='s')
+    p = fig.add_subplot(3, 1, 3)
+    p.scatter(plot_x3, plot_y3, c='r', marker='x')
+    fig.show()
+
+    import pdb; pdb.set_trace()
+    '''
+
     ######
     # 5-fold cross validation of ml-100k
     ######
-
+    
     avg_rmse = 0
     for k in range(1, 6):
+
         train = GroupLensDataSet("ml-100k/u%s.base"%k, "\t")
         test = GroupLensDataSet("ml-100k/u%s.test"%k, "\t")
         model = CFModel()
-        rmse = validate(model, train, test, reg=0.0025, reg_i=15, reg_u=25, save=False)
+        #model.load("model.100k-1[0.92706503318].dump")
+
+        #model.baselines(train, reg_i=25, reg_u=30, reg_it=10, width_mu=5000, width_it=100)
+        rmse = validate(model, train, test, save=False, reg=0.0020, reg_i=15, reg_u=25, reg_it=25, width_mu=5000, width_it=500)
         model.save("model.100k-%s[%s].dump" % (k, rmse))
 
         '''
-        fig = plt.figure()
-        p = fig.add_subplot(1, 1, 1)
-        p.scatter(*model.mu.to_plot(100))
-        fig.show()
-        fig = plt.figure()
-        p = fig.add_subplot(1, 1, 1)
-        p.scatter(*model.mu.to_plot(1000))
-        fig.show()
-        fig = plt.figure()
-        p = fig.add_subplot(1, 1, 1)
-        p.scatter(*model.mu.to_plot(5000))
-        fig.show()
+        for i in range(4):
+            x, y1, y2, y3, y4, y5, y6 = [], [], [], [], [], [], []
+            for u, r, t in train.r_i[i]:
+                x.append(t)
+                y1.append(model.mu.query(t))
+                y2.append(model.cbu[u])
+                y3.append(model.cbi[i])
+                y4.append(model.cbit[i].query(t))
+                y5.append(r)
+                y6.append(model.cbui(u, i, t))
+            fig = plt.figure()
+            p = fig.add_subplot(5, 1, 1)
+            p.scatter(x, y1)
+            p = fig.add_subplot(5, 1, 2)
+            p.scatter(x, y2)
+            p = fig.add_subplot(5, 1, 3)
+            p.scatter(x, y3)
+            p = fig.add_subplot(5, 1, 4)
+            p.scatter(x, y4)
+            p = fig.add_subplot(5, 1, 5)
+            p.scatter(x, y5, c='g')
+            p.scatter(x, y6, c='r')
+            fig.show()
+
+        import pdb; pdb.set_trace()
         '''
 
         avg_rmse += rmse / 5.0
         print k, rmse
+   
     print avg_rmse
+    
     
