@@ -15,7 +15,7 @@ from baseline import CFModel as CFModelBase
 class Polynomial:
     def __init__(self, deg=1):
         self.deg = deg
-        self.coeff = [(random.random()-0.5) for x in xrange(self.deg)]
+        self.coeff = array([(random.random()-0.5) for x in xrange(self.deg)])
 
     def __str__(self):
         return "Degree %d: %s"%(self.deg,','.join(map(str,self.coeff)))
@@ -24,11 +24,16 @@ class Polynomial:
     def eval(self, t):
         return dot(array([ t**x for x in xrange(self.deg)]), self.coeff)
 
+    def norm(self):
+        return dot(self.coeff,self.coeff)
 
-    def update(self, t, val):
+    def update(self, t, step_size, e, reg):
         count = 1
         for x in xrange(self.deg):
-            self.coeff[x] += val * count
+            if (x==0):
+                self.coeff[x] += step_size*(e - reg*self.coeff[x])
+            else:
+                self.coeff[x] += step_size*(e - reg*self.coeff[x])*count*x
             count*=t
 
 class CFModel(CFModelBase):
@@ -76,13 +81,13 @@ class CFModel(CFModelBase):
                     rp = self.bui(user_id, item_id, t) + dot(self.q[item_id], p)
                     e = r - rp
 
-                    tot += e**2 + reg*(self.bu[user_id]**2 + self.bi[item_id].eval(t)**2 + \
+                    tot += e**2 + reg*(self.bu[user_id]**2 + self.bi[item_id].norm() + \
                         dot(self.q[item_id], self.q[item_id]))
 
                     s += e*self.q[item_id]
                     self.q[item_id] += step_size * (e*p - reg*self.q[item_id])
                     self.bu[user_id] += step_size * (e - reg*self.bu[user_id])
-                    self.bi[item_id].update(t, step_size * (e - reg*self.bi[item_id].eval(t)))
+                    self.bi[item_id].update(t, step_size , e , reg)
 
                     rmse += e**2
                     n += 1
@@ -108,7 +113,7 @@ class CFModel(CFModelBase):
             last_tot = tot
 
 def validate(model, train, test, reg, reg_i, reg_u, 
-             min_iter=10, max_iter=100, step_size=0.01, save=True):
+             min_iter=10, max_iter=30, step_size=0.005, save=True):
 
     model.train(train, reg, reg_i, reg_u, min_iter, max_iter, step_size, 3)
 
