@@ -7,6 +7,8 @@ import random
 import itertools
 from collections import defaultdict
 
+from utils import binary_search
+
 from numpy import *
 
 class GroupLensDataSet(object):
@@ -49,6 +51,7 @@ class GroupLensDataSet(object):
         
                 if (i + 1) % 10000 == 0:
                     logging.info("Read %d", i + 1)
+
         max_timestamp -= min_timestamp
         for u, ratings in enumerate(self.r_u):
             self.r_u[u] = [(iid, r, float(t-min_timestamp)/max_timestamp) for (iid, r, t) in ratings]
@@ -91,7 +94,7 @@ class GroupLensDataSet(object):
                 yield u, i, r, timestamp
 
 class CFModel(object):
-    def __init__(self, alpha=0.5, f=200):
+    def __init__(self, alpha=0.5, f=200, dc=4):
         self.mu = 0
         self.bu = array([])
         self.bi = array([])
@@ -102,6 +105,7 @@ class CFModel(object):
 
         self.alpha = alpha
         self.f = f
+        self.dc = dc
 
     def load(self, filename):
         with open(filename) as file_read:
@@ -124,9 +128,19 @@ class CFModel(object):
         return dot(self.q[i], self.x[j])
 
     def rui(self, user_id, item_id, ratings, timestamp):
-        cw = len(ratings)**(-self.alpha)
+        cw = (len(ratings) + self.dc - 1)**(-self.alpha)
         p = cw * sum((r - self.cbui(user_id, i, t))*self.x[i] for i, r, t in ratings)
-        return self.bui(user_id, item_id, timestamp) + dot(self.q[item_id], p)
+
+        '''
+        prev = None
+        for i, r, t in ratings:
+            if t < timestamp:
+                prev = (r - self.cbui(user_id, i, t), i)
+            else:
+                break
+        '''
+
+        return self.bui(user_id, item_id, timestamp) + dot(self.q[item_id], p) #+ (cw*prev[0]*self.wij(item_id, prev[1]) if prev else 0)
 
     def compute_mu(self, data):
         logging.info("Computing mu...")  
@@ -185,13 +199,16 @@ class CFModel(object):
             n = 0
 
             for user_id in range(data.n):
-                cw = len(data.r_u[user_id])**(-self.alpha) 
+                cw = (len(data.r_u[user_id]) + self.dc - 1)**(-self.alpha) 
                 p = cw * sum((r - self.cbui(user_id, item_id, t))*self.x[item_id] \
                         for item_id, r, t in data.r_u[user_id])
 
                 s = 0
+                prev = None
                 for item_id, r, t in data.r_u[user_id]:
-                    rp = self.bui(user_id, item_id, t) + dot(self.q[item_id], p)
+                    rp = self.bui(user_id, item_id, t) + dot(self.q[item_id], p) + ((self.dc - 1)*cw*prev[0]*self.wij(item_id, prev[1]) if prev else 0)
+                    prev = (r - self.cbui(user_id, item_id, t), item_id)
+
                     e = r - rp
 
                     tot += e**2 + reg*(self.bu[user_id]**2 + self.bi[item_id]**2 + \

@@ -104,9 +104,10 @@ class CFModel(CFModelBase):
             tot = 0
             rmse = 0
             n = 0
+
             for user_id in range(data.n):
-                p = len(data.r_u[user_id])**(-self.alpha) * \
-                    sum((r - self.cbui(user_id, item_id, t))*self.x[item_id] \
+                cw = len(data.r_u[user_id])**(-self.alpha) 
+                p = cw * sum((r - self.cbui(user_id, item_id, t))*self.x[item_id] \
                         for item_id, r, t in data.r_u[user_id])
 
                 s = 0
@@ -129,8 +130,7 @@ class CFModel(CFModelBase):
                     tot += reg * len(data.r_u[user_id]) * \
                         dot(self.x[item_id], self.x[item_id])
 
-                    self.x[item_id] += step_size * \
-                        (len(data.r_u[user_id])**(-self.alpha) * \
+                    self.x[item_id] += step_size * (cw * \
                             (r - self.cbui(user_id, item_id, t))*s - reg*self.x[item_id])
 
             logging.info("%s: %s, %s", iter, (rmse / n) ** 0.5, tot)
@@ -202,7 +202,7 @@ if __name__ == '__main__':
         #model.load("model.100k-1[0.92706503318].dump")
 
         #model.baselines(train, reg_i=25, reg_u=30, reg_it=10, width_mu=5000, width_it=100)
-        rmse = validate(model, train, test, save=False, reg=0.0020, reg_i=15, reg_u=25, reg_it=25, width_mu=5000, width_it=500)
+        rmse = validate(model, train, test, save=False, reg=0.0025, reg_i=15, reg_u=25, reg_it=15, width_mu=10000, width_it=500)
         model.save("model.100k-%s[%s].dump" % (k, rmse))
 
         '''
