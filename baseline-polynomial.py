@@ -113,7 +113,7 @@ class CFModel(CFModelBase):
             last_tot = tot
 
 def validate(model, train, test, reg, reg_i, reg_u, 
-             min_iter=10, max_iter=30, step_size=0.005, save=True):
+             min_iter=10, max_iter=60, step_size=0.005, save=True):
 
     model.train(train, reg, reg_i, reg_u, min_iter, max_iter, step_size, 3)
 
