@@ -13,6 +13,7 @@ import random
 from baseline import GroupLensDataSet
 from baseline import CFModel as CFModelBase
 from baseline import validate
+from baseline import full_optimization
 
 from utils import binary_search
 from utils import WindowedAverage
@@ -77,16 +78,6 @@ class CFModel(CFModelBase):
 
         self.bi = array(self.cbi)
         self.bu = array(self.cbu)
-
-        '''
-        logging.info("Computing user baselines...")
-        self.cbu = []
-        for user_id, ratings in data.iter_users():
-            cb = WindowedAverage(100, reg_u)
-            for item_id, r, t in ratings:
-                cb.add(t, r - self.cbi[item_id].query(t) - self.mu.query(t))
-            self.cbu.append(cb.process())
-        '''
 
     def train(self, data, reg, reg_i, reg_u, reg_it, width_mu, width_it, min_iter, max_iter, step_size):
         self.baselines(data, reg_i, reg_u, reg_it, width_mu, width_it)
@@ -189,6 +180,13 @@ if __name__ == '__main__':
     import pdb; pdb.set_trace()
     '''
 
+    model = CFModel()
+    
+    f = lambda reg, reg_i, reg_u, reg_it, width_mu, width_it: validate(CFModel(), GroupLensDataSet("ml-100k/u3.base", "\t"), GroupLensDataSet("ml-100k/u3.test", "\t"), save=False, reg=reg, reg_i=reg_i, reg_u=reg_u, reg_it=reg_it, width_mu=width_mu, width_it=width_it)
+
+    print full_optimization(f, [(0.0025,), (15,), (25,), (15,30), (7500,10000,12500), (250,500,750)])
+
+    """
     ######
     # 5-fold cross validation of ml-100k
     ######
@@ -202,7 +200,7 @@ if __name__ == '__main__':
         #model.load("model.100k-1[0.92706503318].dump")
 
         #model.baselines(train, reg_i=25, reg_u=30, reg_it=10, width_mu=5000, width_it=100)
-        rmse = validate(model, train, test, save=False, reg=0.0025, reg_i=15, reg_u=25, reg_it=15, width_mu=10000, width_it=500)
+        rmse = validate(model, train, test, save=False, reg=0.0025, reg_i=0, reg_u=25, reg_it=30, width_mu=20000, width_it=20)
         model.save("model.100k-%s[%s].dump" % (k, rmse))
 
         '''
@@ -237,5 +235,5 @@ if __name__ == '__main__':
         print k, rmse
    
     print avg_rmse
-    
-    
+    """
+

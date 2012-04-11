@@ -49,12 +49,13 @@ class GroupLensDataSet(object):
         
                 if (i + 1) % 10000 == 0:
                     logging.info("Read %d", i + 1)
+
         max_timestamp -= min_timestamp
         for u, ratings in enumerate(self.r_u):
             self.r_u[u] = [(iid, r, float(t-min_timestamp)/max_timestamp) for (iid, r, t) in ratings]
 
         for i, ratings in enumerate(self.r_i):
-            self.r_i[u] = [(uid, r, float(t-min_timestamp)/max_timestamp) for (uid, r, t) in ratings]
+            self.r_i[i] = [(uid, r, float(t-min_timestamp)/max_timestamp) for (uid, r, t) in ratings]
 
         for rating_list in itertools.chain(self.r_u, self.r_i):
             rating_list.sort(key = lambda x: x[2])
@@ -247,6 +248,8 @@ def silly_optimization(f, args):
 def full_optimization(f, arglists):
     best_args = None
     best_val = float('inf')
+    full_info = []
+
     for cur_args in itertools.product(*arglists):
        try:
            val = f(*cur_args) 
@@ -255,12 +258,14 @@ def full_optimization(f, arglists):
            logging.exception(e)
            val = float('inf')
 
-       logging.info("%s=%s", cur_args, val)
+       print "%s=%s" % (cur_args, val)
        if val < best_val:
            best_args = cur_args[:]
            best_val = val
 
-    return best_args, best_val
+       full_info.append((cur_args, val))
+
+    return best_args, best_val, full_info
 
 def validate(model, train, test, save=True, min_iter=10, max_iter=100, step_size=0.01, *args, **kwargs):
 

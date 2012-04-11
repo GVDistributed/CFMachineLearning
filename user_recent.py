@@ -57,7 +57,7 @@ class GroupLensDataSet(object):
             self.r_u[u] = [(iid, r, float(t-min_timestamp)/max_timestamp) for (iid, r, t) in ratings]
 
         for i, ratings in enumerate(self.r_i):
-            self.r_i[u] = [(uid, r, float(t-min_timestamp)/max_timestamp) for (uid, r, t) in ratings]
+            self.r_i[i] = [(uid, r, float(t-min_timestamp)/max_timestamp) for (uid, r, t) in ratings]
 
         for rating_list in itertools.chain(self.r_u, self.r_i):
             rating_list.sort(key = lambda x: x[2])
@@ -94,7 +94,7 @@ class GroupLensDataSet(object):
                 yield u, i, r, timestamp
 
 class CFModel(object):
-    def __init__(self, alpha=0.5, f=200, dc=4):
+    def __init__(self, alpha=0.5, f=200, dc=5):
         self.mu = 0
         self.bu = array([])
         self.bi = array([])

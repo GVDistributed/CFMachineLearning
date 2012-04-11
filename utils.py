@@ -40,8 +40,16 @@ class WindowedAverage(object):
 
     def avg(self, i, size = None):
         size = size or self.size
-        left = max(0, i - size)
-        right = min(len(self.x) - 1, i + size)
+        lb, ub = 0, len(self.x) - 1
+        if i - size/2 < lb:
+            left = lb
+            right = min(ub, lb + size)
+        elif i + size/2 > ub:
+            left = max(ub - size, lb)
+            right = ub
+        else:
+            left = i - size/2
+            right = i + size/2
         return self.csum(left, right) / float(right - left + 1 + self.reg)
 
     def query(self, k, size = None):
