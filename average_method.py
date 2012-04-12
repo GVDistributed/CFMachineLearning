@@ -134,7 +134,7 @@ class CFModel(CFModelBase):
 
 if __name__ == '__main__':
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR)#INFO)
 
     '''
     train = GroupLensDataSet("ml-100k/u1.base", "\t")    
@@ -182,9 +182,9 @@ if __name__ == '__main__':
 
     model = CFModel()
     
-    f = lambda reg, reg_i, reg_u, reg_it, width_mu, width_it: validate(CFModel(), GroupLensDataSet("ml-100k/u3.base", "\t"), GroupLensDataSet("ml-100k/u3.test", "\t"), save=False, reg=reg, reg_i=reg_i, reg_u=reg_u, reg_it=reg_it, width_mu=width_mu, width_it=width_it)
+    f = lambda reg, reg_i, reg_u, reg_it, width_mu, width_it: validate(CFModel(), GroupLensDataSet("ml-100k/u1.base", "\t"), GroupLensDataSet("ml-100k/u1.test", "\t"), save=False, reg=reg, reg_i=reg_i, reg_u=reg_u, reg_it=reg_it, width_mu=width_mu, width_it=width_it)
 
-    print full_optimization(f, [(0.0025,), (15,), (25,), (15,30), (7500,10000,12500), (250,500,750)])
+    print full_optimization(f, [(0.0025,), (0,15), (25,), (20,40,70,100,200), (20000,), (250,500,1000)])
 
     """
     ######

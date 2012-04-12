@@ -6,7 +6,7 @@ import random
 
 data = GroupLensDataSet("ml-100k/u.data", "\t")
 model = CFModel()
-model.baselines(data, reg_i=0, reg_u=25, reg_it=30, width_mu=20000, width_it=20)
+model.baselines(data, reg_i=15, reg_u=25, reg_it=15, width_mu=20000, width_it=20)
 
 ##################### 
 
@@ -24,7 +24,7 @@ fig = plt.figure()
 p = fig.add_subplot(1,1,1)
 p.scatter(x, ratings, c='b', marker='o', label="r_ui(t)")
 p.scatter(x, b_ui, c='c', marker='o', label="b_ui(t)")
-p.scatter(x, user_baseline, c='m', marker='s', label="b_u(t)")
+p.scatter(x, user_baseline, c='m', marker='s', label="b_u")
 p.scatter(x, item_baseline, c='g', marker='s', label="b_i + b_i(t)")
 plt.title("Baseline Decomposition For Item #%s Over Time" % item_id)
 plt.ylabel("Ratings")
