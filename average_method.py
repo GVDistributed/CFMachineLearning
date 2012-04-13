@@ -180,13 +180,14 @@ if __name__ == '__main__':
     import pdb; pdb.set_trace()
     '''
 
+    '''
     model = CFModel()
     
-    f = lambda reg, reg_i, reg_u, reg_it, width_mu, width_it: validate(CFModel(), GroupLensDataSet("ml-100k/u1.base", "\t"), GroupLensDataSet("ml-100k/u1.test", "\t"), save=False, reg=reg, reg_i=reg_i, reg_u=reg_u, reg_it=reg_it, width_mu=width_mu, width_it=width_it)
+    f = lambda reg, reg_i, reg_u, reg_it, width_mu, width_it: validate(CFModel(), GroupLensDataSet("ml-100k/u4.base", "\t"), GroupLensDataSet("ml-100k/u4.test", "\t"), save=False, reg=reg, reg_i=reg_i, reg_u=reg_u, reg_it=reg_it, width_mu=width_mu, width_it=width_it)
 
-    print full_optimization(f, [(0.0025,), (0,15), (25,), (20,40,70,100,200), (20000,), (250,500,1000)])
+    print full_optimization(f, [(0.0025,), (25,30,35), (25,), (400,500,600), (20000,), (50,75)])
+    '''
 
-    """
     ######
     # 5-fold cross validation of ml-100k
     ######
@@ -200,7 +201,7 @@ if __name__ == '__main__':
         #model.load("model.100k-1[0.92706503318].dump")
 
         #model.baselines(train, reg_i=25, reg_u=30, reg_it=10, width_mu=5000, width_it=100)
-        rmse = validate(model, train, test, save=False, reg=0.0025, reg_i=0, reg_u=25, reg_it=30, width_mu=20000, width_it=20)
+        rmse = validate(model, train, test, save=False, reg=0.0025, reg_i=30, reg_u=25, reg_it=400, width_mu=20000, width_it=75)
         model.save("model.100k-%s[%s].dump" % (k, rmse))
 
         '''
@@ -235,5 +236,4 @@ if __name__ == '__main__':
         print k, rmse
    
     print avg_rmse
-    """
 
